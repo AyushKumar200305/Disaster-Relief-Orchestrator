@@ -6,14 +6,18 @@ from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from backend.risk_engine import (
+    RouteSummary,
     VillagePriority,
     VillageRisk,
     load_hospitals,
+    load_roads,
     load_villages,
+    plan_route,
     score_priority,
     score_villages,
 )
@@ -48,6 +52,37 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class SimulationRequest(BaseModel):
+    """Scenario overrides accepted by the what-if dashboard."""
+
+    rainfall_percent: float = Field(default=100, ge=0, le=300)
+    blocked_road_id: str | None = None
+
+
+class SimulationSnapshot(BaseModel):
+    """One side of a before/after simulation response."""
+
+    priority: list[VillagePriority]
+    route: RouteSummary
+
+
+class SimulationChanges(BaseModel):
+    """Small summary used to highlight meaningful scenario differences."""
+
+    priority_order_changed: bool
+    route_changed: bool
+    rainfall_percent: float
+    blocked_road_id: str | None
+
+
+class SimulationResponse(BaseModel):
+    """Baseline and simulated decision outputs."""
+
+    baseline: SimulationSnapshot
+    simulated: SimulationSnapshot
+    changes: SimulationChanges
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -88,3 +123,72 @@ def priority_scores() -> list[VillagePriority]:
     """Return all sample villages ranked by response priority."""
 
     return score_priority(load_villages(), load_hospitals())
+
+
+@app.get("/api/roads")
+def roads() -> list[dict[str, object]]:
+    """Return roads available for scenario closures."""
+
+    return [road.model_dump() for road in load_roads()]
+
+
+@app.post("/api/simulate", response_model=SimulationResponse)
+def simulate(request: SimulationRequest) -> SimulationResponse:
+    """Re-run risk, priority, and route planning against non-persistent overrides."""
+
+    original_villages = load_villages()
+    hospitals = load_hospitals()
+    roads = load_roads()
+
+    baseline_priority = score_priority(original_villages, hospitals)
+    baseline_route = plan_route(original_villages, hospitals, roads)
+
+    known_road_ids = {road.id for road in roads}
+    if request.blocked_road_id is not None and request.blocked_road_id not in known_road_ids:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=400, detail="Unknown road_id")
+
+    rainfall_multiplier = request.rainfall_percent / 100
+    impacted_village_ids = {
+        endpoint
+        for road in roads
+        if road.id == request.blocked_road_id
+        for endpoint in road.connects
+    }
+    simulated_villages = []
+    for village in original_villages:
+        updates: dict[str, object] = {
+            "rainfall_mm": village.rainfall_mm * rainfall_multiplier,
+        }
+        if village.id in impacted_village_ids:
+            updates["road_status"] = "blocked"
+        simulated_villages.append(village.model_copy(update=updates))
+
+    simulated_priority = score_priority(simulated_villages, hospitals)
+    simulated_route = plan_route(
+        simulated_villages,
+        hospitals,
+        roads,
+        blocked_road_id=request.blocked_road_id,
+    )
+    baseline_order = [village.id for village in baseline_priority]
+    simulated_order = [village.id for village in simulated_priority]
+
+    def route_signature(route: RouteSummary) -> tuple[object, ...]:
+        return (
+            route.status,
+            tuple((road.id, road.blocked) for road in route.roads),
+            route.total_distance_km,
+        )
+
+    return SimulationResponse(
+        baseline=SimulationSnapshot(priority=baseline_priority, route=baseline_route),
+        simulated=SimulationSnapshot(priority=simulated_priority, route=simulated_route),
+        changes=SimulationChanges(
+            priority_order_changed=baseline_order != simulated_order,
+            route_changed=route_signature(baseline_route) != route_signature(simulated_route),
+            rainfall_percent=request.rainfall_percent,
+            blocked_road_id=request.blocked_road_id,
+        ),
+    )

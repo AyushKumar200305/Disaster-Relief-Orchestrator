@@ -1,0 +1,1 @@
+- [Python runtime compatibility](python-runtime.md) — the project declares 3.13 while the configured Replit runtime is 3.12; use the backend requirements in a local venv.

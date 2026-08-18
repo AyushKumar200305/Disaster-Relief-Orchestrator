@@ -63,6 +63,17 @@ class HospitalRecord(BaseModel):
     bed_capacity: int = Field(gt=0)
 
 
+class RoadRecord(BaseModel):
+    """Road connection used by the response router."""
+
+    id: str
+    name: str
+    road_type: str
+    length_km: float = Field(gt=0)
+    condition: str
+    connects: list[str] = Field(min_length=2, max_length=2)
+
+
 class NormalizedFactors(BaseModel):
     """All raw risk inputs after conversion to a 0–100 risk scale."""
 
@@ -99,6 +110,26 @@ class VillagePriority(VillageRisk):
     nearest_hospital_distance_km: float
     priority_factors: PriorityFactors
     priority_score: float
+
+
+class RouteSegment(BaseModel):
+    """A road segment included in a planned route."""
+
+    id: str
+    name: str
+    length_km: float
+    blocked: bool
+
+
+class RouteSummary(BaseModel):
+    """Human-readable route result for the dashboard comparison."""
+
+    origin_label: str
+    destination_label: str
+    status: Literal["CLEAR", "BLOCKED", "NO VIABLE ROUTE"]
+    roads: list[RouteSegment]
+    total_distance_km: float | None
+    message: str
 
 
 class _ScoringRecord(TypedDict):
@@ -143,6 +174,15 @@ def load_hospitals(path: Path = HOSPITALS_PATH) -> list[HospitalRecord]:
     with path.open(encoding="utf-8") as dataset_file:
         raw_hospitals = json.load(dataset_file)
     return [HospitalRecord.model_validate(hospital) for hospital in raw_hospitals]
+
+
+def load_roads(path: Path | None = None) -> list[RoadRecord]:
+    """Load and validate road connections from JSON."""
+
+    roads_path = path or VILLAGES_PATH.parents[0] / "roads.json"
+    with roads_path.open(encoding="utf-8") as dataset_file:
+        raw_roads = json.load(dataset_file)
+    return [RoadRecord.model_validate(road) for road in raw_roads]
 
 
 def score_villages(villages: list[VillageRecord | dict]) -> list[VillageRisk]:
@@ -297,3 +337,108 @@ def score_priority(
         )
 
     return sorted(results, key=lambda village: (-village.priority_score, village.id))
+
+
+def plan_route(
+    villages: list[VillageRecord | dict],
+    hospitals: list[HospitalRecord | dict],
+    roads: list[RoadRecord | dict],
+    blocked_road_id: str | None = None,
+) -> RouteSummary:
+    """Plan the shortest available route from the first response village to hospital."""
+
+    village_records = [
+        village if isinstance(village, VillageRecord) else VillageRecord.model_validate(village)
+        for village in villages
+    ]
+    hospital_records = [
+        hospital if isinstance(hospital, HospitalRecord) else HospitalRecord.model_validate(hospital)
+        for hospital in hospitals
+    ]
+    road_records = [
+        road if isinstance(road, RoadRecord) else RoadRecord.model_validate(road)
+        for road in roads
+    ]
+
+    origin = next((village for village in village_records if village.id == "village-001"), village_records[0])
+    destination = next(
+        (hospital for hospital in hospital_records if hospital.id == "hospital-001"),
+        hospital_records[0],
+    )
+    origin_label = origin.name
+    destination_label = destination.name
+
+    graph: dict[str, list[tuple[str, RoadRecord]]] = {}
+    for road in road_records:
+        first, second = road.connects
+        graph.setdefault(first, []).append((second, road))
+        graph.setdefault(second, []).append((first, road))
+
+    def shortest_path(*, ignore_blocked: bool) -> list[RoadRecord] | None:
+        frontier: list[tuple[float, str, list[RoadRecord]]] = [(0.0, origin.id, [])]
+        best_distance: dict[str, float] = {origin.id: 0.0}
+        while frontier:
+            distance, node, path = frontier.pop(0)
+            if node == destination.id:
+                return path
+            for next_node, road in graph.get(node, []):
+                is_blocked = road.id == blocked_road_id
+                if is_blocked and not ignore_blocked:
+                    continue
+                next_distance = distance + road.length_km
+                if next_distance < best_distance.get(next_node, float("inf")):
+                    best_distance[next_node] = next_distance
+                    frontier.append((next_distance, next_node, [*path, road]))
+            frontier.sort(key=lambda item: item[0])
+        return None
+
+    open_path = shortest_path(ignore_blocked=False)
+    if open_path is not None:
+        segments = [
+            RouteSegment(
+                id=road.id,
+                name=road.name,
+                length_km=road.length_km,
+                blocked=road.id == blocked_road_id,
+            )
+            for road in open_path
+        ]
+        total_distance = round(sum(segment.length_km for segment in segments), 2)
+        return RouteSummary(
+            origin_label=origin_label,
+            destination_label=destination_label,
+            status="CLEAR",
+            roads=segments,
+            total_distance_km=total_distance,
+            message="Shortest available corridor",
+        )
+
+    blocked_path = shortest_path(ignore_blocked=True)
+    if blocked_path is not None:
+        blocked_names = ", ".join(road.name for road in blocked_path if road.id == blocked_road_id)
+        blocked_segments = [
+            RouteSegment(
+                id=road.id,
+                name=road.name,
+                length_km=road.length_km,
+                blocked=road.id == blocked_road_id,
+            )
+            for road in blocked_path
+        ]
+        return RouteSummary(
+            origin_label=origin_label,
+            destination_label=destination_label,
+            status="NO VIABLE ROUTE",
+            roads=blocked_segments,
+            total_distance_km=None,
+            message=f"No viable route — {blocked_names or 'a road on this corridor'} is blocked",
+        )
+
+    return RouteSummary(
+        origin_label=origin_label,
+        destination_label=destination_label,
+        status="NO VIABLE ROUTE",
+        roads=[],
+        total_distance_km=None,
+        message="No connected route found in the current road network",
+    )

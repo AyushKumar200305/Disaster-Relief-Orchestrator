@@ -7,6 +7,7 @@ A full-stack starter for flood risk assessment and emergency response planning.
 - `cd backend && uvicorn app.main:app --reload --port 8000` — run the FastAPI service locally
 - `cd frontend && npm run dev` — run the React frontend locally (port 5173)
 - `docker compose up --build` — run frontend, backend, and PostgreSQL together
+- Replit workflow `Flood Response Dashboard` — starts FastAPI on port 8000 and the Vite dashboard on port 5173
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
@@ -39,9 +40,10 @@ A full-stack starter for flood risk assessment and emergency response planning.
 
 ## Product
 
-The app currently provides sample-data risk and response-priority rankings
-through the FastAPI backend. Mapping, risk prediction, and response optimization
-are intentionally reserved for subsequent iterations.
+The app provides sample-data risk and response-priority rankings through the
+FastAPI backend, plus a non-persistent what-if simulator at `POST /api/simulate`
+for rainfall scaling and road closures. The React dashboard compares baseline
+and simulated priority order and evacuation route side by side.
 
 ## User preferences
 
