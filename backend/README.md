@@ -5,11 +5,11 @@ FastAPI service with Pydantic, SQLAlchemy, and PostgreSQL support.
 ## Local development
 
 ```bash
-cd backend
+cd flood-response-system
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+uvicorn backend.app.main:app --reload --port 8000
 ```
 
 Without `DATABASE_URL`, SQLAlchemy uses a local SQLite file at
@@ -20,3 +20,6 @@ Endpoints:
 
 - `GET /health` — service health
 - `GET /health/database` — database connectivity check
+- `GET /api/risk` — all sample villages ranked by flood risk
+
+Run the scoring tests from the project root with `pytest backend/tests`.
