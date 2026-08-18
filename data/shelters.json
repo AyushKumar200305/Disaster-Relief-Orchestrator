@@ -1,0 +1,20 @@
+[
+  {
+    "id": "shelter-001",
+    "name": "Mangalpur School Shelter",
+    "capacity": 850,
+    "latitude": 22.5969,
+    "longitude": 88.4164,
+    "accessible": true,
+    "backup_power": true
+  },
+  {
+    "id": "shelter-002",
+    "name": "Riverbend Community Hall",
+    "capacity": 420,
+    "latitude": 22.5681,
+    "longitude": 88.3576,
+    "accessible": true,
+    "backup_power": false
+  }
+]

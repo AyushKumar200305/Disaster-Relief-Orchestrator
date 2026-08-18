@@ -1,0 +1,20 @@
+[
+  {
+    "id": "hospital-001",
+    "name": "Delta General Hospital",
+    "capacity": 220,
+    "available_beds": 74,
+    "latitude": 22.5792,
+    "longitude": 88.3892,
+    "has_emergency_unit": true
+  },
+  {
+    "id": "hospital-002",
+    "name": "East Basin Community Clinic",
+    "capacity": 60,
+    "available_beds": 18,
+    "latitude": 22.6044,
+    "longitude": 88.4302,
+    "has_emergency_unit": false
+  }
+]

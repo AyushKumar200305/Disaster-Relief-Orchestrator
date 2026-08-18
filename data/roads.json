@@ -1,0 +1,18 @@
+[
+  {
+    "id": "road-001",
+    "name": "Delta Connector",
+    "road_type": "primary",
+    "length_km": 18.6,
+    "condition": "good",
+    "connects": ["village-001", "hospital-001"]
+  },
+  {
+    "id": "road-002",
+    "name": "Mangalpur Access Road",
+    "road_type": "secondary",
+    "length_km": 7.2,
+    "condition": "needs_review",
+    "connects": ["village-002", "shelter-001"]
+  }
+]

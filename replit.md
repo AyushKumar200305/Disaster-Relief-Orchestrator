@@ -1,10 +1,12 @@
-# [Project name]
+# Flood Response System
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A full-stack starter for flood risk assessment and emergency response planning.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `cd backend && uvicorn app.main:app --reload --port 8000` — run the FastAPI service locally
+- `cd frontend && npm run dev` — run the React frontend locally (port 5173)
+- `docker compose up --build` — run frontend, backend, and PostgreSQL together
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
@@ -14,23 +16,31 @@ _Replace the heading above with the project's name, and this line with one sente
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- API: FastAPI, Pydantic, SQLAlchemy
+- DB: PostgreSQL in Compose, SQLite by default for local backend development
+- Frontend: React, Vite, Tailwind CSS, Leaflet, Recharts
+- Data: JSON fixtures in `data/`
+- ML: Python starter entry points in `ml/`
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `backend/` — FastAPI app, SQLAlchemy engine, Dockerfile, and Python dependencies
+- `frontend/` — React + Vite + Tailwind app, Dockerfile, and Nginx proxy
+- `data/` — sample villages, roads, hospitals, and shelters JSON datasets
+- `ml/` — placeholder risk prediction and response optimization scripts
+- `docker-compose.yml` — local three-service stack
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The backend defaults to SQLite when `DATABASE_URL` is not set, making local development lightweight.
+- Docker Compose switches the backend to PostgreSQL and waits for the database health check.
+- The frontend uses `/health` as a same-origin request; Vite proxies it locally and Nginx proxies it in Compose.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+The initial build only confirms that the React frontend can reach the FastAPI
+backend. Mapping, risk prediction, and response optimization are intentionally
+reserved for subsequent iterations.
 
 ## User preferences
 

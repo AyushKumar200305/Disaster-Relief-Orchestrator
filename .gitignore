@@ -10,6 +10,24 @@ out-tsc
 
 # dependencies
 node_modules
+frontend/node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+backend/flood_response.db
+
+# Frontend build
+frontend/dist/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Docker
+postgres_data/
 
 # IDEs and editors
 /.idea

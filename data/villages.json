@@ -1,0 +1,20 @@
+[
+  {
+    "id": "village-001",
+    "name": "Riverbend",
+    "district": "North Delta",
+    "population": 4820,
+    "latitude": 22.5726,
+    "longitude": 88.3639,
+    "elevation_m": 8.4
+  },
+  {
+    "id": "village-002",
+    "name": "Mangalpur",
+    "district": "East Basin",
+    "population": 3150,
+    "latitude": 22.5958,
+    "longitude": 88.4121,
+    "elevation_m": 6.1
+  }
+]
