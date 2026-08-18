@@ -24,6 +24,8 @@
     "river_distance_km": 3.0,
     "elevation": "medium",
     "road_status": "slow",
+    "elderly_pct": 20,
+    "children_pct": 25,
     "latitude": 22.5958,
     "longitude": 88.4121
   },
@@ -52,6 +54,8 @@
     "river_distance_km": 2.0,
     "elevation": "low",
     "road_status": "slow",
+    "elderly_pct": 12,
+    "children_pct": 18,
     "latitude": 22.6153,
     "longitude": 88.3785
   },
@@ -108,6 +112,8 @@
     "river_distance_km": 3.0,
     "elevation": "medium",
     "road_status": "slow",
+    "elderly_pct": 22,
+    "children_pct": 28,
     "latitude": 22.6062,
     "longitude": 88.3551
   },
@@ -136,6 +142,8 @@
     "river_distance_km": 5.0,
     "elevation": "medium",
     "road_status": "open",
+    "elderly_pct": 18,
+    "children_pct": 22,
     "latitude": 22.5907,
     "longitude": 88.3866
   }

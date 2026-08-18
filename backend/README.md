@@ -21,5 +21,6 @@ Endpoints:
 - `GET /health` — service health
 - `GET /health/database` — database connectivity check
 - `GET /api/risk` — all sample villages ranked by flood risk
+- `GET /api/priority` — all sample villages ranked by impact-aware response priority
 
 Run the scoring tests from the project root with `pytest backend/tests`.

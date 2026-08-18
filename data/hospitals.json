@@ -2,19 +2,43 @@
   {
     "id": "hospital-001",
     "name": "Delta General Hospital",
-    "capacity": 220,
-    "available_beds": 74,
-    "latitude": 22.5792,
-    "longitude": 88.3892,
-    "has_emergency_unit": true
+    "lat": 22.5792,
+    "lng": 88.3892,
+    "bed_capacity": 220
   },
   {
     "id": "hospital-002",
     "name": "East Basin Community Clinic",
-    "capacity": 60,
-    "available_beds": 18,
-    "latitude": 22.6044,
-    "longitude": 88.4302,
-    "has_emergency_unit": false
+    "lat": 22.6044,
+    "lng": 88.4302,
+    "bed_capacity": 60
+  },
+  {
+    "id": "hospital-003",
+    "name": "Riverbend Field Hospital",
+    "lat": 22.5700,
+    "lng": 88.3550,
+    "bed_capacity": 120
+  },
+  {
+    "id": "hospital-004",
+    "name": "Charghat Medical Center",
+    "lat": 22.6160,
+    "lng": 88.3800,
+    "bed_capacity": 180
+  },
+  {
+    "id": "hospital-005",
+    "name": "West Ridge Hospital",
+    "lat": 22.5450,
+    "lng": 88.3300,
+    "bed_capacity": 90
+  },
+  {
+    "id": "hospital-006",
+    "name": "North Delta District Hospital",
+    "lat": 22.6200,
+    "lng": 88.4400,
+    "bed_capacity": 300
   }
 ]

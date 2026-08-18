@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend ./backend
 COPY data/villages.json ./data/villages.json
+COPY data/hospitals.json ./data/hospitals.json
 
 EXPOSE 8000
 

@@ -1,6 +1,7 @@
-"""Transparent, dataset-relative flood risk scoring."""
+"""Transparent flood risk and emergency priority scoring."""
 
 import json
+import math
 from pathlib import Path
 from typing import Literal, TypedDict
 
@@ -19,9 +20,18 @@ WEIGHTS = {
     "road_accessibility": 0.10,
 }
 
+PRIORITY_WEIGHTS = {
+    "risk_score": 0.40,
+    "population_risk": 0.25,
+    "vulnerability": 0.15,
+    "road_difficulty": 0.10,
+    "medical_need": 0.10,
+}
+
 ELEVATION_RISK = {"low": 100.0, "medium": 50.0, "high": 0.0}
 ROAD_ACCESS_RISK = {"open": 0.0, "slow": 50.0, "blocked": 100.0}
 VILLAGES_PATH = Path(__file__).resolve().parents[1] / "data" / "villages.json"
+HOSPITALS_PATH = Path(__file__).resolve().parents[1] / "data" / "hospitals.json"
 
 
 class VillageRecord(BaseModel):
@@ -39,10 +49,22 @@ class VillageRecord(BaseModel):
     road_status: RoadStatus
     latitude: float | None = None
     longitude: float | None = None
+    elderly_pct: float | None = Field(default=None, ge=0, le=100)
+    children_pct: float | None = Field(default=None, ge=0, le=100)
+
+
+class HospitalRecord(BaseModel):
+    """Hospital location and capacity used by the priority model."""
+
+    id: str
+    name: str
+    lat: float
+    lng: float
+    bed_capacity: int = Field(gt=0)
 
 
 class NormalizedFactors(BaseModel):
-    """All scoring inputs after conversion to a 0–100 risk scale."""
+    """All raw risk inputs after conversion to a 0–100 risk scale."""
 
     rainfall: float
     river_level: float
@@ -52,13 +74,31 @@ class NormalizedFactors(BaseModel):
     road_accessibility: float
 
 
+class PriorityFactors(BaseModel):
+    """All impact and response inputs after conversion to a 0–100 scale."""
+
+    population_risk: float
+    vulnerability: float
+    road_difficulty: float
+    medical_need: float
+
+
 class VillageRisk(VillageRecord):
-    """Village data enriched with its score and severity bucket."""
+    """Village data enriched with its raw hazard score and severity bucket."""
 
     population_density: float
     normalized_factors: NormalizedFactors
     risk_score: float
     risk_bucket: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+
+
+class VillagePriority(VillageRisk):
+    """Village data enriched with impact-aware response priority."""
+
+    nearest_hospital_name: str
+    nearest_hospital_distance_km: float
+    priority_factors: PriorityFactors
+    priority_score: float
 
 
 class _ScoringRecord(TypedDict):
@@ -97,6 +137,14 @@ def load_villages(path: Path = VILLAGES_PATH) -> list[VillageRecord]:
     return [VillageRecord.model_validate(village) for village in raw_villages]
 
 
+def load_hospitals(path: Path = HOSPITALS_PATH) -> list[HospitalRecord]:
+    """Load and validate hospital records from JSON."""
+
+    with path.open(encoding="utf-8") as dataset_file:
+        raw_hospitals = json.load(dataset_file)
+    return [HospitalRecord.model_validate(hospital) for hospital in raw_hospitals]
+
+
 def score_villages(villages: list[VillageRecord | dict]) -> list[VillageRisk]:
     """Score and rank villages using relative normalization across the input set."""
 
@@ -108,7 +156,7 @@ def score_villages(villages: list[VillageRecord | dict]) -> list[VillageRisk]:
         return []
 
     densities = [village.population / village.area_km2 for village in records]
-    scoring_records = [
+    scoring_records: list[_ScoringRecord] = [
         {"village": village, "population_density": density}
         for village, density in zip(records, densities, strict=True)
     ]
@@ -155,3 +203,97 @@ def score_villages(villages: list[VillageRecord | dict]) -> list[VillageRisk]:
         )
 
     return sorted(results, key=lambda village: (-village.risk_score, village.id))
+
+
+def _haversine_distance_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """Calculate the great-circle distance between two latitude/longitude pairs."""
+
+    earth_radius_km = 6371.0
+    lat1_rad, lat2_rad = math.radians(lat1), math.radians(lat2)
+    delta_lat = math.radians(lat2 - lat1)
+    delta_lng = math.radians(lng2 - lng1)
+    haversine = (
+        math.sin(delta_lat / 2) ** 2
+        + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(delta_lng / 2) ** 2
+    )
+    return earth_radius_km * 2 * math.asin(math.sqrt(haversine))
+
+
+def score_priority(
+    villages: list[VillageRecord | dict],
+    hospitals: list[HospitalRecord | dict],
+) -> list[VillagePriority]:
+    """Rank villages by hazard, population impact, vulnerability, access, and care need."""
+
+    risk_scores = score_villages(villages)
+    hospital_records = [
+        hospital if isinstance(hospital, HospitalRecord) else HospitalRecord.model_validate(hospital)
+        for hospital in hospitals
+    ]
+    if not hospital_records:
+        raise ValueError("At least one hospital is required to calculate priority.")
+
+    populations = [village.population for village in risk_scores]
+    density_values = [village.population_density for village in risk_scores]
+    nearest_distances: dict[str, tuple[HospitalRecord, float]] = {}
+    for village in risk_scores:
+        if village.latitude is None or village.longitude is None:
+            raise ValueError(f"Village {village.id} is missing coordinates.")
+        nearest_distances[village.id] = min(
+            (
+                (
+                    hospital,
+                    _haversine_distance_km(
+                        village.latitude,
+                        village.longitude,
+                        hospital.lat,
+                        hospital.lng,
+                    ),
+                )
+                for hospital in hospital_records
+            ),
+            key=lambda item: item[1],
+        )
+
+    distance_values = [distance for _, distance in nearest_distances.values()]
+    results: list[VillagePriority] = []
+    for village in risk_scores:
+        nearest_hospital, nearest_distance = nearest_distances[village.id]
+        population_normalized = _normalize(village.population, min(populations), max(populations))
+        population_risk = population_normalized * (village.risk_score / 100)
+        if village.elderly_pct is not None or village.children_pct is not None:
+            vulnerability = min(100.0, (village.elderly_pct or 0) + (village.children_pct or 0))
+        else:
+            vulnerability = _normalize(village.population_density, min(density_values), max(density_values))
+        priority_factors = PriorityFactors(
+            population_risk=population_risk,
+            vulnerability=vulnerability,
+            road_difficulty=ROAD_ACCESS_RISK[village.road_status],
+            medical_need=_normalize(
+                nearest_distance,
+                min(distance_values),
+                max(distance_values),
+            ),
+        )
+        # Risk ranking measures hazard severity; priority can differ because response
+        # planning also favors larger, more vulnerable, less accessible populations.
+        priority_score = sum(
+            (
+                village.risk_score * PRIORITY_WEIGHTS["risk_score"],
+                priority_factors.population_risk * PRIORITY_WEIGHTS["population_risk"],
+                priority_factors.vulnerability * PRIORITY_WEIGHTS["vulnerability"],
+                priority_factors.road_difficulty * PRIORITY_WEIGHTS["road_difficulty"],
+                priority_factors.medical_need * PRIORITY_WEIGHTS["medical_need"],
+            )
+        )
+        results.append(
+            VillagePriority(
+                **village.model_dump(),
+                nearest_hospital_name=nearest_hospital.name,
+                nearest_hospital_distance_km=round(nearest_distance, 2),
+                priority_factors=priority_factors,
+                priority_score=round(priority_score, 2),
+            )
+        )
+
+    return sorted(results, key=lambda village: (-village.priority_score, village.id))

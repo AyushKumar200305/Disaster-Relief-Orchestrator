@@ -1,6 +1,6 @@
 import pytest
 
-from backend.risk_engine import load_villages, score_villages
+from backend.risk_engine import load_hospitals, load_villages, score_priority, score_villages
 
 
 @pytest.fixture()
@@ -50,3 +50,48 @@ def test_results_are_ranked_highest_first():
     assert len(scores) == 10
     assert scores == sorted(scores, key=lambda village: village.risk_score, reverse=True)
     assert scores[0].id == "village-001"
+
+
+@pytest.fixture()
+def sample_priorities():
+    return {
+        village.id: village
+        for village in score_priority(load_villages(), load_hospitals())
+    }
+
+
+def test_priority_formula_combines_risk_and_impact(sample_priorities):
+    village = sample_priorities["village-008"]
+    factors = village.priority_factors
+    expected_score = (
+        0.40 * village.risk_score
+        + 0.25 * factors.population_risk
+        + 0.15 * factors.vulnerability
+        + 0.10 * factors.road_difficulty
+        + 0.10 * factors.medical_need
+    )
+
+    assert village.priority_score == pytest.approx(expected_score, abs=0.01)
+    assert village.priority_score == pytest.approx(61.64, abs=0.01)
+
+
+def test_priority_uses_demographics_and_density_fallback(sample_priorities):
+    demographic_village = sample_priorities["village-008"]
+    density_fallback_village = sample_priorities["village-001"]
+
+    assert demographic_village.priority_factors.vulnerability == 50
+    assert density_fallback_village.elderly_pct is None
+    assert density_fallback_village.children_pct is None
+    assert density_fallback_village.priority_factors.vulnerability == pytest.approx(
+        density_fallback_village.normalized_factors.population_density,
+        abs=0.01,
+    )
+
+
+def test_priority_order_differs_from_raw_risk_order(sample_priorities):
+    risk_order = [village.id for village in score_villages(load_villages())]
+    priority_order = list(sample_priorities)
+
+    assert risk_order != priority_order
+    assert risk_order.index("village-006") < risk_order.index("village-008")
+    assert priority_order.index("village-008") < priority_order.index("village-006")

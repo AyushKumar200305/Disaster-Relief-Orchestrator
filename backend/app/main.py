@@ -9,7 +9,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
-from backend.risk_engine import VillageRisk, load_villages, score_villages
+from backend.risk_engine import (
+    VillagePriority,
+    VillageRisk,
+    load_hospitals,
+    load_villages,
+    score_priority,
+    score_villages,
+)
 
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./flood_response.db")
@@ -74,3 +81,10 @@ def risk_scores() -> list[VillageRisk]:
     """Return all sample villages ranked from highest to lowest flood risk."""
 
     return score_villages(load_villages())
+
+
+@app.get("/api/priority", response_model=list[VillagePriority])
+def priority_scores() -> list[VillagePriority]:
+    """Return all sample villages ranked by response priority."""
+
+    return score_priority(load_villages(), load_hospitals())

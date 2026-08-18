@@ -35,12 +35,13 @@ A full-stack starter for flood risk assessment and emergency response planning.
 - The backend defaults to SQLite when `DATABASE_URL` is not set, making local development lightweight.
 - Docker Compose switches the backend to PostgreSQL and waits for the database health check.
 - The frontend uses `/health` as a same-origin request; Vite proxies it locally and Nginx proxies it in Compose.
+- Raw risk and response priority are separate rankings; priority adds impact, access, vulnerability, and hospital proximity.
 
 ## Product
 
-The initial build only confirms that the React frontend can reach the FastAPI
-backend. Mapping, risk prediction, and response optimization are intentionally
-reserved for subsequent iterations.
+The app currently provides sample-data risk and response-priority rankings
+through the FastAPI backend. Mapping, risk prediction, and response optimization
+are intentionally reserved for subsequent iterations.
 
 ## User preferences
 
